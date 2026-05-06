@@ -1,106 +1,118 @@
-# ══ ETAPA 1: SAST con Semgrep ══
-sast:
-  name: 'SAST - Semgrep'
-  runs-on: ubuntu-latest
+name: Pipeline de Seguridad DevSecOps
 
-  steps:
-    - name: Checkout codigo
-      uses: actions/checkout@v4
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
 
-    - name: Instalar Semgrep
-      run: pip install semgrep
+jobs:
 
-    - name: Ejecutar analisis SAST
-      run: |
-        semgrep --config p/python \
-                --config p/owasp-top-ten \
-                --config p/secrets \
-                --config p/sql-injection \
-                --error \
-                --json \
-                --output=semgrep-results.json \
-                Unidad_3_Seguridad_en_Aplicaciones_y_Datos/devsecops-lab/app/ || true
+  # ══ ETAPA 1: SAST con Semgrep ══
+  sast:
+    name: 'SAST - Semgrep'
+    runs-on: ubuntu-latest
 
-        semgrep --config p/python \
-                --config p/owasp-top-ten \
-                --config p/secrets \
-                --config p/sql-injection \
-                Unidad_3_Seguridad_en_Aplicaciones_y_Datos/devsecops-lab/app/
+    steps:
+      - name: Checkout codigo
+        uses: actions/checkout@v4
 
-    - name: Guardar resultados SAST
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: semgrep-results
-        path: semgrep-results.json
+      - name: Instalar Semgrep
+        run: pip install semgrep
 
+      - name: Ejecutar analisis SAST
+        run: |
+          semgrep --config p/python \
+                  --config p/owasp-top-ten \
+                  --config p/secrets \
+                  --config p/sql-injection \
+                  --error \
+                  --json \
+                  --output=semgrep-results.json \
+                  Unidad_3_Seguridad_en_Aplicaciones_y_Datos/devsecops-lab/app/ || true
 
-# ══ ETAPA 2: Analisis de dependencias ══
-sca:
-  name: 'SCA - pip-audit'
-  runs-on: ubuntu-latest
+          semgrep --config p/python \
+                  --config p/owasp-top-ten \
+                  --config p/secrets \
+                  --config p/sql-injection \
+                  Unidad_3_Seguridad_en_Aplicaciones_y_Datos/devsecops-lab/app/
 
-  steps:
-    - name: Checkout codigo
-      uses: actions/checkout@v4
-
-    - name: Configurar Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-
-    - name: Instalar y ejecutar pip-audit
-      run: |
-        pip install pip-audit
-        pip-audit -r Unidad_3_Seguridad_en_Aplicaciones_y_Datos/devsecops-lab/app/requirements.txt \
-                  --format=json \
-                  --output=audit-report.json || true
-
-        echo '--- Reporte de CVEs ---'
-        pip-audit -r Unidad_3_Seguridad_en_Aplicaciones_y_Datos/devsecops-lab/app/requirements.txt
-
-    - name: Guardar reporte de auditoria
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: pip-audit-report
-        path: audit-report.json
+      - name: Guardar resultados SAST
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: semgrep-results
+          path: semgrep-results.json
 
 
-# ══ ETAPA 3: Tests ══
-tests:
-  name: 'Tests - pytest'
-  runs-on: ubuntu-latest
-  needs: [sast, sca]
+  # ══ ETAPA 2: Analisis de dependencias ══
+  sca:
+    name: 'SCA - pip-audit'
+    runs-on: ubuntu-latest
 
-  steps:
-    - name: Checkout codigo
-      uses: actions/checkout@v4
+    steps:
+      - name: Checkout codigo
+        uses: actions/checkout@v4
 
-    - name: Configurar Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-    - name: Instalar dependencias
-      run: |
-        pip install -r Unidad_3_Seguridad_en_Aplicaciones_y_Datos/devsecops-lab/app/requirements.txt
-        pip install pytest
+      - name: Instalar y ejecutar pip-audit
+        run: |
+          pip install pip-audit
+          pip-audit -r Unidad_3_Seguridad_en_Aplicaciones_y_Datos/devsecops-lab/app/requirements.txt \
+                    --format=json \
+                    --output=audit-report.json || true
 
-    - name: Ejecutar tests
-      run: pytest Unidad_3_Seguridad_en_Aplicaciones_y_Datos/devsecops-lab/tests/ -v
+          echo '--- Reporte de CVEs ---'
+          pip-audit -r Unidad_3_Seguridad_en_Aplicaciones_y_Datos/devsecops-lab/app/requirements.txt
+
+      - name: Guardar reporte de auditoria
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pip-audit-report
+          path: audit-report.json
 
 
-# ══ ESTADO FINAL DEL PIPELINE ══
-pipeline-status:
-  name: 'Estado final del pipeline'
-  runs-on: ubuntu-latest
-  needs: [sast, sca, tests]
-  if: always()
+  # ══ ETAPA 3: Tests ══
+  tests:
+    name: 'Tests - pytest'
+    runs-on: ubuntu-latest
+    needs: [sast, sca]
 
-  steps:
-    - name: Resumen
-      run: |
-        echo 'SAST:         ${{ needs.sast.result }}'
-        echo 'Dependencias: ${{ needs.sca.result }}'
-        echo 'Tests:        ${{ needs.tests.result }}'
+    steps:
+      - name: Checkout codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependencias
+        run: |
+          pip install -r Unidad_3_Seguridad_en_Aplicaciones_y_Datos/devsecops-lab/app/requirements.txt
+          pip install pytest
+
+      - name: Ejecutar tests
+        run: |
+          pytest Unidad_3_Seguridad_en_Aplicaciones_y_Datos/devsecops-lab/tests/ -v
+
+
+  # ══ ESTADO FINAL DEL PIPELINE ══
+  pipeline-status:
+    name: 'Estado final del pipeline'
+    runs-on: ubuntu-latest
+    needs: [sast, sca, tests]
+    if: always()
+
+    steps:
+      - name: Resumen
+        run: |
+          echo 'SAST:         ${{ needs.sast.result }}'
+          echo 'Dependencias: ${{ needs.sca.result }}'
+          echo 'Tests:        ${{ needs.tests.result }}'
